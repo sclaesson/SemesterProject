@@ -1,0 +1,129 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+
+
+```{r,echo=FALSE}
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(magrittr))
+suppressPackageStartupMessages(library(knitr))
+suppressPackageStartupMessages(library(tidyr))
+suppressPackageStartupMessages(library(rgdal))
+suppressPackageStartupMessages(library(rvest))
+suppressPackageStartupMessages(library(maps))
+suppressPackageStartupMessages(library(ggmap))
+```
+
+
+```{r, echo=FALSE}
+# quick na check
+which(is.na(lyme.disease.counts))
+
+# loading and tidying data 
+lyme.disease.counts <- read.csv("lyme.disease.dataset.csv") %>%
+  tbl_df %>%
+  rename("1992-1996" = X1992.1996, "1997-2001" = X1997.2001, "2002-2006" = X2002.2006, "2007-2011" =  X2007.2011, CountyFIPS = CountyCode, StateFIPS = StateCode) %>%
+  gather("year.range", "counts", 5:8) %>%
+  filter(StateName != "Hawaii") %>%
+  filter(StateName != "Alaska")
+
+# adding zeros to CountyFIPS so that 3 digits in order to merge 
+lyme.disease.counts$CountyFIPS <- sprintf("%03d", lyme.disease.counts$CountyFIPS)
+
+# pasting StateFIPS and CountyFIPS to get full FIPS code 
+lyme.disease.counts$FIPS <- paste(lyme.disease.counts$StateFIPS, lyme.disease.counts$CountyFIPS, sep = "")
+
+# turning NAs into zeros
+lyme.disease.counts[is.na(lyme.disease.counts)] <- 0
+
+# filtering out counts from unknown counties to be later included in state map
+unknown.county.counts <- filter(lyme.disease.counts, CountyFIPS == 000)
+
+# only known counties with FIPS codes
+lyme.disease.counts$CountyFIPS <- as.numeric(lyme.disease.counts$CountyFIPS)
+lyme.disease.counties <- filter(lyme.disease.counts, CountyFIPS != 000)
+
+# Census 2010 
+census2010 <- read.csv("Census2010StateCounty.csv") %>%
+  tbl_df %>%
+  rename("FIPS" = Geo_FIPS, "pop.density" = SE_T002_002, "tot.pop" = SE_T001_001) %>%
+  mutate(pop.under.eighteen = SE_T008_002 + SE_T008_003 + SE_T008_004 + SE_T008_005) %>%
+  mutate(per.pop.under.eighteen = ((pop.under.eighteen/tot.pop) * 100)) %>%
+  select(FIPS, pop.density, per.pop.under.eighteen, tot.pop)
+
+# lyme state counts joined with census
+lyme.counts.census <- inner_join(lyme.disease.counts, census2010, by = "FIPS") %>%
+  mutate(incidence = (counts/tot.pop)) %>%
+  select(-CountyName, -StateFIPS, -CountyFIPS) %>%
+  distinct() # make sure this doesn't fuck up any of the year stuff
+
+# State map of US in 2010 
+US.state <- map_data("state") %>% 
+  tbl_df()
+
+# clean text function
+clean.text <- function(text){
+  text <- gsub("[^[:alnum:]]", "", text)
+  text <- gsub(" ", "", text)
+  text <- tolower(text)
+  return(text)
+}
+
+# cleaning up state names
+lyme.counts.census$StateName <- clean.text(lyme.counts.census$StateName)
+US.state$region <- clean.text(US.state$region)
+
+# inner join with state geographic data
+lyme.counts.states <- inner_join(lyme.counts.census, US.state, by = c("StateName" = "region"))
+
+# year by year state incidence plots
+lyme.states.first.year <- filter(lyme.counts.states, year.range == "1992-1996")
+
+ggplot(lyme.states.first.year, aes(x=long, y=lat, group=group, fill = incidence)) +
+  geom_polygon() +
+  geom_path(col="black", size=0.05) +
+  coord_map() +
+  scale_fill_continuous(low="white", high="green", name="Incidence")
+
+lyme.state.second.year <- filter(lyme.counts.states, year.range == "1997-2001")
+
+ggplot(lyme.state.second.year, aes(x=long, y=lat, group=group, fill = incidence)) +
+  geom_polygon() +
+  geom_path(col="black", size=0.05) +
+  coord_map() +
+  scale_fill_continuous(low="white", high="green", name="Incidence")
+
+lyme.states.third.year <- filter(lyme.counts.states, year.range == "2002-2006")
+
+ggplot(lyme.states.third.year, aes(x=long, y=lat, group=group, fill = incidence)) +
+  geom_polygon() +
+  geom_path(col="black", size=0.05) +
+  coord_map() +
+  scale_fill_continuous(low="white", high="green", name="Incidence")
+
+lyme.states.fourth.year <- filter(lyme.counts.states, year.range == "2007-2011") 
+
+ggplot(lyme.states.fourth.year, aes(x=long, y=lat, group=group, fill = incidence)) +
+  geom_polygon() +
+  geom_path(col="black", size=0.05) +
+  coord_map() +
+  scale_fill_continuous(low="white", high="green", name="Incidence")
+
+# lyme county counts joined with census
+lyme.counties.census <- inner_join(lyme.disease.counties, census2010, by = "FIPS") %>%
+  mutate(incidence = (counts/tot.pop))
+
+
+
+#http://bcb.dfci.harvard.edu/~aedin/courses/R/CDC/maps.html
+
+
+
+
+
+```
+
+

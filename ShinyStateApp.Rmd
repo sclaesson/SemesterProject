@@ -1,11 +1,16 @@
 ---
-title: "Untitled"
+title: "Prevalence of Lyme Disease in the US"
+runtime: shiny
 output: html_document
 ---
 
+This R Markdown document is made interactive using Shiny. Unlike the more traditional workflow of creating static reports, you can now create documents that allow your readers to change the assumptions underlying your analysis and see the results immediately. 
+
+To learn more, see [Interactive Documents](http://rmarkdown.rstudio.com/authoring_shiny.html).
 
 
-```{r,echo=FALSE}
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#help
 suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(magrittr))
@@ -15,12 +20,7 @@ suppressPackageStartupMessages(library(rgdal))
 suppressPackageStartupMessages(library(rvest))
 suppressPackageStartupMessages(library(maps))
 suppressPackageStartupMessages(library(ggmap))
-```
-
-
-```{r, echo=FALSE}
-# quick na check
-which(is.na(lyme.disease.counts))
+suppressPackageStartupMessages(library(shiny))
 
 # loading and tidying data 
 lyme.disease.counts <- read.csv("lyme.disease.dataset.csv") %>%
@@ -90,60 +90,25 @@ US.state$region <- clean.text(US.state$region)
 # inner join with state geographic data
 lyme.counts.states.geo <- inner_join(lyme.state.prevalence, US.state, by = c("StateName" = "region")) %>%
   select(-order, -subregion) 
+
+inputPanel(
+    selectInput("years", label = "Year",
+              choices = c("1992-1996", "1997-2001", "2002-2006", "2007-2011"))
+              )
+renderPlot({
+  year.choices <- input$years 
+  lyme.counts.states.geo <- filter(lyme.counts.states.geo, year.range==year.choices)
   
-  
-
-# year by year state incidence plots
-lyme.states.first.year <- filter(lyme.counts.states.geo, year.range == "1992-1996")
-
-
-
-
-ggplot(lyme.states.first.year, aes(x=long, y=lat, group=group, fill = log10(prevalence))) +
+ ggplot(lyme.counts.states.geo, aes(x=long, y=lat, group=group, fill = log10(prevalence))) +
   geom_polygon() +
   geom_path(col="black", size=0.05) +
   coord_map() +
-  scale_fill_continuous(low="white", high="lawngreen", name="Prevalence")
-
-
-
-lyme.state.second.year <- filter(lyme.counts.states.geo, year.range == "1997-2001")
-
-ggplot(lyme.state.second.year, aes(x=long, y=lat, group=group, fill = log10(prevalence))) +
-  geom_polygon() +
-  geom_path(col="black", size=0.05) +
-  coord_map() +
-  scale_fill_continuous(low="white", high="lawngreen", name="Prevalence")
-
-lyme.states.third.year <- filter(lyme.counts.states.geo, year.range == "2002-2006")
-
-ggplot(lyme.states.third.year, aes(x=long, y=lat, group=group, fill = log10(prevalence))) +
-  geom_polygon() +
-  geom_path(col="black", size=0.05) +
-  coord_map() +
-  scale_fill_continuous(low="white", high="lawngreen", name="Prevalence")
-
-lyme.states.fourth.year <- filter(lyme.counts.states.geo, year.range == "2007-2011") 
-
-
-ggplot(lyme.states.fourth.year, aes(x=long, y=lat, group=group, fill = log10(prevalence))) +
-  geom_polygon() +
-  geom_path(col="black", size=0.05) +
-  coord_map() +
-  scale_fill_continuous(low="white", high="lawngreen", name="Prevalence")
-
-# lyme county counts joined with census
-lyme.counties.census <- inner_join(lyme.disease.counties, census2010, by = "FIPS") %>%
-  mutate(incidence = (counts/tot.pop))
-
-
-
-#http://bcb.dfci.harvard.edu/~aedin/courses/R/CDC/maps.html
-
-
-
+  scale_fill_continuous(low="white", high="lawngreen", name="Prevalence") 
+})
 
 
 ```
+
+
 
 

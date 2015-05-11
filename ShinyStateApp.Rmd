@@ -4,9 +4,26 @@ runtime: shiny
 output: html_document
 ---
 
-This R Markdown document is made interactive using Shiny. Unlike the more traditional workflow of creating static reports, you can now create documents that allow your readers to change the assumptions underlying your analysis and see the results immediately. 
+![](header.jpg)                                                           
 
-To learn more, see [Interactive Documents](http://rmarkdown.rstudio.com/authoring_shiny.html).
+Lyme disease is the most prevalent vector-borne illness in the US and case numbers have been rising steadily since 1995^1^. Infected ticks bite their host and transmit bacteria called Borrelia burgdorferi that cause infection. In the US, Lyme disease was first acknowledged in 1975 in Lyme, Connecticut when many children were diagnosed with juvenile rheumatoid arthritis, an uncommon disease^2^.  Lyme disease is often characterized by a large bulls eye rash. 
+
+![](rash.png) ![](tick.jpg)
+
+Common symptoms of the disease include: fever, severe fatigue, chills, muscle and joint aches, headache, and swollen lymph nodes^3^. The highest time for infection is during the spring and summer when ticks are alive and in abundance. Part of understanding this disease and spreading awareness is visualizing where cases are clustered and how that changes over time. Cases are increasing and it is important to know if that increase is in the same areas or new areas. This project has interactive maps of the prevalence of Lyme disease in the US from 1992-2011 on state and county levels. Data was downloaded from the CDC and contained counts of Lyme disease for each county in the US. The maps show relative high prevalence of Lyme disease in the northeast and north midwest. Maps of population density and percent of population under 18 were created. Since ticks are more common in wooded areas, I would have expected ruralness (as estimated by population density) to somewhat match the map of Lyme disease prevalence. However, it seemed that areas of greater population density actually mapped better. Since children most likely play outside more frequently than adults, I wanted to determine if Lyme disease was more prevalent in areas with a higher percent of children. This does not seem to be the case based on the maps except in the lower southwest. Limitations of this work include underreporting of cases, collecting of surveillance data based on county of residence, but not necessarily exposure, and changes in reported cases from year to year cannot be extrapolated to correspond directly to changes in incidence due to factors influencing a state's reporting^4^. 
+
+
+
+^1^ http://www.idsociety.org/Lyme_Facts/ 
+
+^2^ http://www.webmd.com/rheumatoid-arthritis/arthritis-lyme-disease
+
+^3^ http://www.cdc.gov/lyme/signs_symptoms/index.html
+
+^4^ http://www.cdc.gov/lyme/stats/survfaq.html
+
+
+ ![](ribbon.jpg)
 
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
@@ -49,7 +66,7 @@ census2010$FIPS <- as.character(census2010$FIPS)
 # lyme counts by county joined with census data by county
 lyme.counts.census <- inner_join(lyme.disease.counts, census2010, by = "FIPS") %>%
   mutate(prevalence = (counts/tot.pop) *100) %>%
-  select(-CountyName, -StateFIPS, -CountyFIPS)
+  select(-StateFIPS, -CountyFIPS)
 ```
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
@@ -71,12 +88,12 @@ US.county.map <- fortify(US.county, region="county") %>%
 # removes the leading zero in order to join id with FIPS
 US.county.map$id <- as.integer(US.county.map$id)
 
-# converting to character to match types for join
-US.county.map$id <- as.character(US.county.map$id)
+# converting to integer to match types for join
+lyme.counts.census$FIPS <- as.integer(lyme.counts.census$FIPS)
 
 # joining county level lyme disease countys with US county geographical info and lightening the data set to run faster
 lyme.counts.county.geo <- inner_join(lyme.counts.census, US.county.map, by = c("FIPS" = "id")) %>%
-  select(-hole, -piece, -order, -counts, -tot.pop, -per.pop.under.eighteen, - pop.density)
+  select(-hole, -piece, -order, -counts, -tot.pop, -per.pop.under.eighteen, - pop.density, -StateName)
 
 # shiny select box 
 inputPanel(
@@ -93,8 +110,84 @@ renderPlot({
   geom_polygon() +
   geom_path(col="black", size=0) +
   coord_map() +
-  scale_fill_continuous(low="white", high="lawngreen", name="Prevalence", na.value = "white") 
+  scale_fill_continuous(low="white", high="lawngreen", name="Prevalence (log10)", na.value = "white") +
+  ggtitle("Prevalence of Lyme Disease in the US on a County Level")
 })
+
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Creating POP DENSITY MAP and PERCENT POP UNDER 18 MAP
+
+# converting for join with county level geography
+census2010$FIPS <- as.numeric(census2010$FIPS)
+
+# join of census data with county level geography
+census.geo <- inner_join(census2010, US.county.map, by = c("FIPS" = "id")) %>%
+  select(-hole, -piece, -order)
+
+# POP DENSITY MAP (lots of observations so it runs pretty slowly)
+ggplot(census.geo, aes(x=long, y=lat, group=group, fill = log10(pop.density))) +
+  geom_polygon() +
+  geom_path(col="black", size=0) +
+  coord_map() +
+  scale_fill_continuous(low="white", high="black", name="Population Density", na.value = "white") +
+  ggtitle("US Population Density Based on the 2010 Census")
+
+# PERCENT POP UNDER 18 MAP (lots of observations so it runs pretty slowly)
+ggplot(census.geo, aes(x=long, y=lat, group=group, fill = per.pop.under.eighteen)) +
+  geom_polygon() +
+  geom_path(col="black", size=0) +
+  coord_map() +
+  scale_fill_continuous(low="white", high="orange", name="Percent of Population \n under 18 Years Old", na.value = "white") +
+  ggtitle("Percent of US Population under \n 18 Years Old Based on the 2010 Census")
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# TABLES of TOP 20 counties with the most prevalence of Lyme Disease
+
+# filtering data from 1992-1996
+first.year <- filter(lyme.counts.census, year.range == "1992-1996") %>%
+  arrange(desc(prevalence)) %>%
+  select(StateName, CountyName, prevalence) %>%
+  rename(State = StateName, County = CountyName, Prevalence = prevalence) %>%
+  slice(1:20)
+
+# TABLE of Prevalence 1997-1996
+kable(first.year, caption = "Top 20 Counties with Highest Prevalence of Lyme Disease from 1992-1996", col.names = colnames(first.year))
+
+# filtering data from 1997-2001
+second.year <- filter(lyme.counts.census, year.range == "1997-2001") %>%
+  arrange(desc(prevalence)) %>%
+  select(StateName, CountyName, prevalence) %>%
+  rename(State = StateName, County = CountyName, Prevalence = prevalence) %>%
+  slice(1:20)
+
+# TABLE of Prevalence 1997-2001
+kable(second.year, caption = "Top 20 Counties with Highest Prevalence of Lyme Disease from 1997-2001", col.names = colnames(second.year))
+
+
+# filtering data from 2002-2006
+third.year <- filter(lyme.counts.census, year.range == "2002-2006") %>%
+  arrange(desc(prevalence)) %>%
+  select(StateName, CountyName, prevalence) %>%
+  rename(State = StateName, County = CountyName, Prevalence = prevalence) %>%
+  slice(1:20)
+
+# TABLE of Prevalence 2002-2006
+kable(third.year, caption = "Top 20 Counties with Highest Prevalence of Lyme Disease from 2002-2006", col.names = colnames(third.year))
+
+# filtering data from 2007-2011
+fourth.year <- filter(lyme.counts.census, year.range == "2007-2011") %>%
+  arrange(desc(prevalence)) %>%
+  select(StateName, CountyName, prevalence) %>%
+  rename(State = StateName, County = CountyName, Prevalence = prevalence) %>%
+  slice(1:20)
+
+# TABLE of Prevalence 2007-2011
+kable(fourth.year, caption = "Top 20 Counties with Highest Prevalence of Lyme Disease from 2007-2011", col.names = colnames(fourth.year))
 
 ```
 
@@ -139,7 +232,7 @@ inputPanel(
               choices = c("1992-1996", "1997-2001", "2002-2006", "2007-2011"))
     )
 
-# shiny map with select box for different year ranges
+# shiny map with select box for different year ranges (lots of observations so it runs pretty slowly)
 renderPlot({
   year.choices <- input$years 
   lyme.counts.states.geo <- filter(lyme.counts.states.geo, year.range==year.choices)
@@ -148,11 +241,9 @@ renderPlot({
   geom_polygon() +
   geom_path(col="black", size=0.05) +
   coord_map() +
-  scale_fill_continuous(low="white", high="lawngreen", name="Prevalence", na.value = "white") 
+  scale_fill_continuous(low="white", high="lawngreen", name="Prevalence (log10)", na.value = "white") +
+  ggtitle("Prevalence of Lyme Disease in the US on a County Level")
 })
 
 ```
-
-
-
 

@@ -242,7 +242,7 @@ renderPlot({
   geom_path(col="black", size=0.05) +
   coord_map() +
   scale_fill_continuous(low="white", high="lawngreen", name="Prevalence (log10)", na.value = "white") +
-  ggtitle("Prevalence of Lyme Disease in the US on a County Level")
+  ggtitle("Prevalence of Lyme Disease in the US on a State Level")
 })
 
 ```

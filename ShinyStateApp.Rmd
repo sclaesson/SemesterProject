@@ -10,7 +10,6 @@ To learn more, see [Interactive Documents](http://rmarkdown.rstudio.com/authorin
 
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
-#help
 suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(magrittr))
@@ -36,16 +35,6 @@ lyme.disease.counts$CountyFIPS <- sprintf("%03d", lyme.disease.counts$CountyFIPS
 # pasting StateFIPS and CountyFIPS to get full FIPS code 
 lyme.disease.counts$FIPS <- paste(lyme.disease.counts$StateFIPS, lyme.disease.counts$CountyFIPS, sep = "")
 
-# turning NAs into zeros
-lyme.disease.counts[is.na(lyme.disease.counts)] <- 0
-
-# filtering out counts from unknown counties to be later included in state map
-unknown.county.counts <- filter(lyme.disease.counts, CountyFIPS == 000)
-
-# only known counties with FIPS codes
-lyme.disease.counts$CountyFIPS <- as.numeric(lyme.disease.counts$CountyFIPS)
-lyme.disease.counties <- filter(lyme.disease.counts, CountyFIPS != 000)
-
 # Census 2010 
 census2010 <- read.csv("Census2010StateCounty.csv") %>%
   tbl_df %>%
@@ -57,18 +46,71 @@ census2010 <- read.csv("Census2010StateCounty.csv") %>%
 # converting to character to match types for join
 census2010$FIPS <- as.character(census2010$FIPS)
 
-# lyme state counts joined with census
+# lyme counts by county joined with census data by county
 lyme.counts.census <- inner_join(lyme.disease.counts, census2010, by = "FIPS") %>%
   mutate(prevalence = (counts/tot.pop) *100) %>%
   select(-CountyName, -StateFIPS, -CountyFIPS)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+## COUNTY LEVEL
+
+# loading county level map of US
+
+US.county <- readOGR(dsn=".", 
+              layer="gz_2010_us_050_00_500k", 
+              verbose=FALSE) 
+
+US.county@data <- US.county@data %>% 
+  mutate(county=paste(STATE,COUNTY,sep=""))
+
+# Convert shapefile to ggplot'able object
+US.county.map <- fortify(US.county, region="county") %>% 
+  tbl_df()
+
+# removes the leading zero in order to join id with FIPS
+US.county.map$id <- as.integer(US.county.map$id)
+
+# converting to character to match types for join
+US.county.map$id <- as.character(US.county.map$id)
+
+# joining county level lyme disease countys with US county geographical info and lightening the data set to run faster
+lyme.counts.county.geo <- inner_join(lyme.counts.census, US.county.map, by = c("FIPS" = "id")) %>%
+  select(-hole, -piece, -order, -counts, -tot.pop, -per.pop.under.eighteen, - pop.density)
+
+# shiny select box 
+inputPanel(
+    selectInput("years", label = "Year",
+              choices = c("1992-1996", "1997-2001", "2002-2006", "2007-2011"))
+    )
+
+# shiny map with select box for different year ranges
+renderPlot({
+  year.choices <- input$years 
+  lyme.counts.county.geo <- filter(lyme.counts.county.geo, year.range==year.choices)
+  
+ ggplot(lyme.counts.county.geo, aes(x=long, y=lat, group=group, fill = log10(prevalence))) +
+  geom_polygon() +
+  geom_path(col="black", size=0) +
+  coord_map() +
+  scale_fill_continuous(low="white", high="lawngreen", name="Prevalence", na.value = "white") 
+})
+
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+## STATE LEVEL
 
 # totaling state counts and state population to calculate state prevalence 
 lyme.state.prevalence <- group_by(lyme.counts.census, StateName, year.range) %>%
-  summarise(tot.counts = sum(counts), tot.state.pop = sum(tot.pop)) %>%
-  mutate(prevalence = (tot.counts/tot.state.pop)* 100)
+  summarise(tot.counts = sum(counts, na.rm = TRUE), tot.state.pop = sum(tot.pop, na.rm = TRUE))
 
-# since montana has zero cases changed it to arizona which has the lowest prevalence of (1.564451e-05)
-lyme.state.prevalence$prevalence <- replace(lyme.state.prevalence$prevalence, lyme.state.prevalence$prevalence == 0.000000e+00, 1.564451e-05)
+# montana had zero cases from 1992-2006, replacing zeros with NAs (since log10 of 0 in INF) in the plot set NA values to result in white  
+lyme.state.prevalence$tot.counts[lyme.state.prevalence$tot.counts == 0] <- NA
+
+# calculating prevalence
+lyme.state.prevalence <- mutate(lyme.state.prevalence, prevalence = (tot.counts/tot.state.pop)* 100)
 
 # State map of US in 2010 
 US.state <- map_data("state") %>% 
@@ -91,10 +133,13 @@ US.state$region <- clean.text(US.state$region)
 lyme.counts.states.geo <- inner_join(lyme.state.prevalence, US.state, by = c("StateName" = "region")) %>%
   select(-order, -subregion) 
 
+# shiny select box 
 inputPanel(
     selectInput("years", label = "Year",
               choices = c("1992-1996", "1997-2001", "2002-2006", "2007-2011"))
-              )
+    )
+
+# shiny map with select box for different year ranges
 renderPlot({
   year.choices <- input$years 
   lyme.counts.states.geo <- filter(lyme.counts.states.geo, year.range==year.choices)
@@ -103,9 +148,8 @@ renderPlot({
   geom_polygon() +
   geom_path(col="black", size=0.05) +
   coord_map() +
-  scale_fill_continuous(low="white", high="lawngreen", name="Prevalence") 
+  scale_fill_continuous(low="white", high="lawngreen", name="Prevalence", na.value = "white") 
 })
-
 
 ```
 

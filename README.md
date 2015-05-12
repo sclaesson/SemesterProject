@@ -1,26 +1,15 @@
-# Untitled
+### Prevalence of Lyme Disease in the US: Interactive Maps
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+<br>
 
-###When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+Lyme disease is the most-common vector-borne infectious disease in the US. 
+This project aimed to create an interactive map of the prevalence of Lyme disease in the US from 1992-2011. Maps at the state and county level show how the spread of the disease has changed. A drop-down menu allows the viewer to select which year range for which they would like to view the map. <br>
+<br>
+<br>
+![](teaser.png)
+
+Other census variables that may have some correlation to Lyme disease prevalence were mapped as well. 
 
 
-```r
-summary(cars)
-```
 
-```
-##      speed           dist       
-##  Min.   : 4.0   Min.   :  2.00  
-##  1st Qu.:12.0   1st Qu.: 26.00  
-##  Median :15.0   Median : 36.00  
-##  Mean   :15.4   Mean   : 42.98  
-##  3rd Qu.:19.0   3rd Qu.: 56.00  
-##  Max.   :25.0   Max.   :120.00
-```
 
->You can also embed plots, for example:
-
-![](README_files/figure-html/unnamed-chunk-2-1.png) 
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
